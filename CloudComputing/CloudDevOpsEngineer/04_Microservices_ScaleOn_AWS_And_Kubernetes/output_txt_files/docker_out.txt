@@ -1,0 +1,49 @@
+<paste log output from Docker prediction, here>
+
+（udacity_project) fk@ubuntu:~/project-ml-microservice-kubernetes$ sudo docker run -p 8000:80 app
+[sudo] password for fk: 
+Sorry, try again.
+[sudo] password for fk: 
+
+ * Serving Flask app "app" (lazy loading)
+ * Environment: production
+   WARNING: Do not use the development server in a production environment.
+   Use a production WSGI server instead.
+ * Debug mode: on
+ * Running on http://0.0.0.0:80/ (Press CTRL+C to quit)
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 126-159-254
+[2020-05-13 04:15:39,311] INFO in app: JSON payload: 
+{'CHAS': {'0': 0}, 'RM': {'0': 6.575}, 'TAX': {'0': 296.0}, 'PTRATIO': {'0': 15.3}, 'B': {'0': 396.9}, 'LSTAT': {'0': 4.98}}
+[2020-05-13 04:15:39,501] INFO in app: Inference payload DataFrame: 
+   CHAS     RM    TAX  PTRATIO      B  LSTAT
+0     0  6.575  296.0     15.3  396.9   4.98
+[2020-05-13 04:15:39,692] INFO in app: Scaling Payload: 
+   CHAS     RM    TAX  PTRATIO      B  LSTAT
+0     0  6.575  296.0     15.3  396.9   4.98
+[2020-05-13 04:15:39,839] INFO in app: JSON payload: 
+[20.35373177134412]
+172.17.0.1 - - [13/May/2020 04:15:39] "POST /predict HTTP/1.1" 200 -
+[2020-05-13 04:15:51,764] INFO in app: JSON payload: 
+{'CHAS': {'0': 0}, 'RM': {'0': 6.575}, 'TAX': {'0': 296.0}, 'PTRATIO': {'0': 15.3}, 'B': {'0': 396.9}, 'LSTAT': {'0': 4.98}}
+[2020-05-13 04:15:51,821] INFO in app: Inference payload DataFrame: 
+   CHAS     RM    TAX  PTRATIO      B  LSTAT
+0     0  6.575  296.0     15.3  396.9   4.98
+[2020-05-13 04:15:51,865] INFO in app: Scaling Payload: 
+   CHAS     RM    TAX  PTRATIO      B  LSTAT
+0     0  6.575  296.0     15.3  396.9   4.98
+[2020-05-13 04:15:51,872] INFO in app: JSON payload: 
+[20.35373177134412]
+172.17.0.1 - - [13/May/2020 04:15:51] "POST /predict HTTP/1.1" 200 -
+[2020-05-13 04:20:41,258] INFO in app: JSON payload: 
+{'CHAS': {'0': 0}, 'RM': {'0': 6.575}, 'TAX': {'0': 296.0}, 'PTRATIO': {'0': 15.3}, 'B': {'0': 396.9}, 'LSTAT': {'0': 4.98}}
+[2020-05-13 04:20:41,494] INFO in app: Inference payload DataFrame: 
+   CHAS     RM    TAX  PTRATIO      B  LSTAT
+0     0  6.575  296.0     15.3  396.9   4.98
+[2020-05-13 04:20:41,670] INFO in app: Scaling Payload: 
+   CHAS     RM    TAX  PTRATIO      B  LSTAT
+0     0  6.575  296.0     15.3  396.9   4.98
+[2020-05-13 04:20:41,755] INFO in app: JSON payload: 
+[20.35373177134412]
+172.17.0.1 - - [13/May/2020 04:20:41] "POST /predict HTTP/1.1" 200 -

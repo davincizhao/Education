@@ -1,0 +1,5 @@
+1. https://github.com/davincizhao/Auto_Deploy_Application_with_CircleCI
+2. http://udapeople-f87d1c6.s3-website-us-west-1.amazonaws.com/ 
+3. https://d1jw1qcb5tzwee.cloudfront.net
+4. http://ec2-54-219-165-66.us-west-1.compute.amazonaws.com:3030/api/status
+5. http://ec2-54-183-247-132.us-west-1.compute.amazonaws.com:9090
