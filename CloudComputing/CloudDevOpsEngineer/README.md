@@ -9,6 +9,9 @@ DevOps is the combination of industry best practices, and set of tools that impr
 - Improved collaboration among teams.
 - In other words, these tools enable a company to showcase industry best practices in software development.
 
+**Devops Diagram from StackExchange**
+![devops](https://i.stack.imgur.com/kEOe7.png)
+
 ## Issues that DevOps tries to solve:
 - Unpredictable deployments
 - Mismatched environments (development doesn’t match production)
