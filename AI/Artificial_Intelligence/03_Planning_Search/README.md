@@ -10,5 +10,7 @@ methods.
 first graph search better than all non-heuristic search. But in problem 3 is not better than non-heuristic 
 search “**Number 3** depth first graph search”. Because **Number 7** greedy best first graph search almost create 8 times 
 nodes of **Number 3** depth first graph search, spend 7 times of time to finished the searching.
+
 ![p1](https://github.com/davincizhao/Education/blob/main/AI/Artificial_Intelligence/03_Planning_Search/p1.png)
+
 ![p2](https://github.com/davincizhao/Education/blob/main/AI/Artificial_Intelligence/03_Planning_Search/p2.png)
