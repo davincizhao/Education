@@ -81,5 +81,44 @@ After installing AWS CLI, recall that you must configure the following four item
 ### Development and Production user accounts
 In practice, Development and DevOps members may have separate user accounts for the development environment as opposed to the production environment. This makes it easier for developers by giving them wider privileges in the dev environment that would normally only be reserved for DevOps members in the production environment.
 
+## Create Cloudformation stack
+### Create stack
+- **Create the template file:** Use the following code for your first test file: demo_cf.yml (or choose any other name). Be careful about the indentation while you paste/write the same code in your editor.
 
+```
+AWSTemplateFormatVersion: 2010-09-09
+Description: demo show template deploys a VPC
+Resources:
+UdacityVPC:
+  Type: 'AWS::EC2::VPC'
+  Properties:
+    CidrBlock: 10.0.0.0/16
+    EnableDnsHostnames: 'true'
+    Tags:
+    - Key: name
+      Value: demovpc
+```
 
+- **Run the aws command :** Run the following command in the terminal, from the same directory where you've placed your testcfn.yml file.
+```
+aws cloudformation create-stack  --stack-name myCFStack --region us-east-1 --template-body ./demo_cf.yml
+```
+
+- **Alternate method - Shell Script:** You can write a shell script (.sh) file as:
+```
+aws cloudformation create-stack --stack-name $1 --template-body file://$2  --parameters file://$3 --capabilities "CAPABILITY_IAM" "CAPABILITY_NAMED_IAM" --region=us-west-2
+```
+
+- **Alternate method - Batch Script** You can also try a batch script (.bat) with a similar syntax, except that the actual values can be written as``` %1``` instead as```$1```.
+
+### Update stack
+You may also want to use update-stack when you want to update an existing stack instead of destroying your stack and creating a new one. The syntax is similar to before:
+```
+aws cloudformation update-stack --stack-name $1 --template-body file://$2  --parameters file://$3 --capabilities "CAPABILITY_IAM" "CAPABILITY_NAMED_IAM" --region=us-west-2
+```
+
+### Describe stack
+Once a stack is created successfully, you can verify by either going to the web console or running the following command, which will display all the details the stack.
+```
+aws cloudformation describe-stacks --stack-name demo_cf.yml
+```
