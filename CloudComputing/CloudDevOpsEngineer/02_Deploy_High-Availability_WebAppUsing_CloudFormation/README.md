@@ -1,4 +1,4 @@
-# Project2
+# Deploy High-Availability Web App using cloudformation
 The Deploy a high-availability web app using using Cloudformation 
 
 project for the Udacity Devops Nanodegree course.
@@ -12,6 +12,9 @@ README.txt: this file
 create.bat: windows script for cloudformation create stack
 update.bat: Windows script for cloudformation update stack
 
+**AWS Diagram**
+using cloud service www.lucidchart.com to draw project Diagram
+[Diagram](https://github.com/davincizhao/Education/blob/main/CloudComputing/CloudDevOpsEngineer/02_Deploy_High-Availability_WebAppUsing_CloudFormation/VPC%20diagram.jpeg)
 
 1. Network.yaml：
 
