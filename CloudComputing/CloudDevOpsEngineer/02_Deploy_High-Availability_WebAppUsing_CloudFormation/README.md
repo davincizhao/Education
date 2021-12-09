@@ -17,9 +17,25 @@ using cloud service www.lucidchart.com to draw project Diagram
 
 ![Diagram](https://github.com/davincizhao/Education/blob/main/CloudComputing/CloudDevOpsEngineer/02_Deploy_High-Availability_WebAppUsing_CloudFormation/VPC%20diagram.jpeg)
 
-1. Network.yaml：
+## 1. Network.yaml：
 
 The Network.yaml file is for creating the network VPC, Subnets etc. using the network-params.json as input parameters. 
+AWS resources define in yaml format:
+- 1 VPC
+- 1 InternetGateway
+- 1 InternetGatewayAttachment, for attach the InternetGateway to VPC
+- 1 PublicSubnet1 and 1 PublicSubnet2
+- 1 PrivateSubnet1 and 1 PrivateSubnet2
+- 1 NatGateway1EIP and 1 NatGateway2EIP, for Elastic IP, not need to change IP.
+- 1 NatGateway1 and 1 NatGateway2, Allocate with each EIP
+- 1 PublicRouteTable 
+- 1 DefaultPublicRoute, all outbond trafic(destination:0.0.0.0/0) will send to InternetGateway
+- 1 PublicSubnet1RouteTableAssociation and 1 PublicSubnet2RouteTableAssociation, for Association public route table to public subnet1 and public subnet2 
+- 1 PrivateRouteTable1 and 1 PrivateRouteTable2
+- 1 DefaultPrivateRoute1 and 1 DefaultPrivateRoute2, all trafic(destination:0.0.0.0/0) will send to NatGateway1 or NatGateway2
+- 1 PrivateSubnet1RouteTableAssociation and 1 PrivateSubnet2RouteTableAssociation, for Association Private route table to Private subnet1 and Private subnet2
+
+Code sample
 ```
 Resources:
   VPC:
