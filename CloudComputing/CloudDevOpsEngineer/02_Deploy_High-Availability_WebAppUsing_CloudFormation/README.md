@@ -151,21 +151,193 @@ Resources:
   PrivateSubnet2RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
 ```
-2.ApacheServer.yaml
-ApacheServer.yaml using the ApacheServer-params.json file as the input. 
+## 2.ApacheServer.yaml
+ApacheServer.yaml using the ApacheServer-params.json file as the parameters input. 
 It creates the webservers which include the Load Balancer, 
-AutoScaling Groups and Security Groups are created using 
+AutoScaling Groups and Security Groups are created using cloudformation.
 
-Instructions(Windows 10 )
-First create the network by running the create.bat file as below:
+**Loadbalancer Diagram**
+![LBS](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/images/component_architecture.png)
 
+ApacheServer resources in yaml:
+- RootRole
+- RootInstanceProfile
+- LBSecGroup, SecurityGroup for LBS
+- WebServerSecGroup, SecurityGroup for Web Server
+- WebAppLaunchConfig, startup script to install apache2 and start apache2 service
+- WebAppGroup, AutoScalingGroup for web app
+- WebAppTargetGroup, TargetGroup for webLBS
+- WebAppLB, LoadBalancer for Web app server
+- Listener, Listener of LBS
+- ALBListenerRule, Rule of Listener
+ 
+ 
+
+**Code sample**
+
+```
+Resources:
+  RootRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service:
+                - 'ec2.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      Path: '/'
+      Policies:
+        - PolicyName: 'root'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: 'Allow'
+                Action: '*'
+                Resource: '*'
+
+  RootInstanceProfile:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      Path: '/'
+      Roles:
+        - Ref: 'RootRole'
+
+  LBSecGroup: 
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+        GroupDescription: Allow http to our load balancer
+        VpcId:
+          Fn::ImportValue:
+            !Sub "${EnvironmentName}-VPCID"
+        SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+    
+  WebServerSecGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+        GroupDescription: Allow http to our hosts
+        VpcId:
+          Fn::ImportValue:
+            !Sub "${EnvironmentName}-VPCID"
+        SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0 
+        SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0
+
+  WebAppLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          apt-get update -y
+          apt-get install unzip awscli -y
+          apt-get install apache2 -y
+          systemctl start apache2.service
+          cd /var/www/html
+          aws s3 cp s3://udacity-demo-1/udacity.zip .
+          unzip -o udacity.zip
+      ImageId: ami-06f2f779464715dc5
+      IamInstanceProfile: 
+        Ref: RootInstanceProfile
+      SecurityGroups:
+      - Ref: WebServerSecGroup
+      InstanceType: t3.medium
+      BlockDeviceMappings:
+      - DeviceName: "/dev/sdk"
+        Ebs:
+          VolumeSize: '10'
+
+  WebAppGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier:
+      - Fn::ImportValue:
+          !Sub "${EnvironmentName}-PRIV-NETS"
+      LaunchConfigurationName:
+        Ref: WebAppLaunchConfig
+      MinSize: '4'
+      MaxSize: '4'
+      TargetGroupARNs:
+        - Ref: WebAppTargetGroup
+  
+  WebAppTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 10
+      HealthCheckPath: /
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 8
+      HealthyThresholdCount: 2
+      Port: 80
+      Protocol: HTTP
+      UnhealthyThresholdCount: 5
+      VpcId:
+        Fn::ImportValue:
+          Fn::Sub: "${EnvironmentName}-VPCID"
+
+  WebAppLB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Subnets:
+        - Fn::ImportValue: !Sub "${EnvironmentName}-PUB1-SN"
+        - Fn::ImportValue: !Sub "${EnvironmentName}-PUB2-SN"
+      SecurityGroups:
+        - Ref: LBSecGroup
+
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+      -   Type: forward
+          TargetGroupArn: 
+              Ref: WebAppTargetGroup
+      LoadBalancerArn: !Ref WebAppLB
+      Port: 80
+      Protocol: HTTP
+
+  ALBListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+      -   Type: forward
+          TargetGroupArn: !Ref WebAppTargetGroup
+      Conditions:
+      -   Field: path-pattern
+          Values: [/]
+      ListenerArn: !Ref Listener
+      Priority: 1
+```      
+
+## Instructions(Windows 10 )
+- First create the network by running the create.bat file as below:
+```
 create.bat ApacheNetStack Network.yaml network-params.json
+```
 
-Second Create the Web Stack by running the create file as shown below.
-
+- Second Create the Web Stack by running the create file as shown below.
+```
 create.bat ApacheWebStack ApacheServer.yaml ApacheServer-params.json
-
-Finally go to "cloudformation"-->"Stacks"--"ApacheWebStack"--"Outputs",
+```
+- Finally go to "cloudformation"-->"Stacks"--"ApacheWebStack"--"Outputs",
 You can get the "LoadBalancerURL",copy the value into your webbrowser.
 You will see the website.
 URL:
