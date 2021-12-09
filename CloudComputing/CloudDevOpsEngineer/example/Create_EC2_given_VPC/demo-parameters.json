@@ -1,0 +1,14 @@
+[
+{
+"ParameterKey": "myVPC",
+"ParameterValue": <input vpc id>
+},
+{
+"ParameterKey": "PublicSubnet",
+"ParameterValue": <input subnet id>
+},
+{
+"ParameterKey": "AMItoUse",
+"ParameterValue": <input ami id>
+}
+]
