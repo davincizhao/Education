@@ -34,13 +34,14 @@
 ```
 ## What is ROS?
 The **Robot Operating System (ROS)** is a set of software libraries and tools that help you build robot applications. From drivers to state-of-the-art algorithms, and with powerful developer tools, ROS has what you need for your next robotics project. And it's all open source.
+[ROS 2 Doc: Galactic](https://docs.ros.org/en/galactic/Concepts.html)
 
 ## Quick overview of ROS 2 Concepts
 - Graph Concepts
 - Nodes
 - Client Libraries
 - Discovery
-- Related Content
+
 
 **ROS 2** is a middleware based on an anonymous publish/subscribe mechanism that allows for message passing between different ROS processes.
 
