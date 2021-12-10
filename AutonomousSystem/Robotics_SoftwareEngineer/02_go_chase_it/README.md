@@ -35,7 +35,7 @@
 ## What is ROS?
 The **Robot Operating System (ROS)** is a set of software libraries and tools that help you build robot applications. From drivers to state-of-the-art algorithms, and with powerful developer tools, ROS has what you need for your next robotics project. And it's all open source.
 
-## Quick overview of ROS 2 Concepts
+## Quick overview of ROS 2 Concepts
 - Graph Concepts
 - Nodes
 - Client Libraries
@@ -51,7 +51,7 @@ At the heart of any ROS 2 system is the ROS graph. The ROS graph refers to the n
 - Messages: ROS data type used when subscribing or publishing to a topic.
 - Topics: Nodes can publish messages to a topic as well as subscribe to a topic to receive messages.
 - Discovery: The automatic process through which nodes determine how to talk to each other.
-- 
+
 ### Nodes
 A node is a participant in the ROS graph. ROS nodes use a ROS client library to communicate with other nodes. Nodes can publish or subscribe to Topics. Nodes can also provide or use Services and Actions. There are configurable Parameters associated with a node. Connections between nodes are established through a distributed discovery process. Nodes may be located in the same process, in different processes, or on different machines. These concepts will be described in more detail in the sections that follow.
 
