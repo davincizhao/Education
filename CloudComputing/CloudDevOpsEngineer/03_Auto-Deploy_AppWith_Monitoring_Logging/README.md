@@ -114,6 +114,106 @@ All configuration code must be in code and versioned alongside your production c
 - **Failed Pipeline Cost**	Various calculations including job run time and resources created	Shows the estimated amount of money spent on a failed build. Encourages us to put cheaper jobs earlier in the pipeline.
 
 
+## Monitoring areas
+- Database Stats
+- Application Logs
+- Docker Logs
+- Firewall
+- Load Balancer
+- GPU
+- Operating System
+- Router
+- Cable Modem
+- Message Bus
+- AWS Services
+- Mail Server
+- Other 3rd Party Services
+- Other Monitoring Systems
+
+## Key Point of Monitoring
+### Availability
+Uptime or downtime often translates to dollars, one way or the other. Downtime will increase drastically without monitoring since you won't be watching the system manually, round the clock. This downtime will negatively affect revenue or could increase legal costs.
+
+### Performance
+Company performance and image often hangs the reliability of its technology. If systems degrade when users are trying to consume it, their confidence in the system will also degrade, which might result in employee turn-over or loss of clients.
+
+### Capacity
+Company or product growth is (generally) a good thing, especially if technology can rise to the demands of its users. But, when infrastructure is not ready meet the needs of business on time, it can result in lost revenue or increased costs.
+
+### Productivity
+Development teams who spend time less troubleshooting tend to spend more time developing. However, without proper monitoring, development team members will have no choice but to dive into time-consuming troubleshooting, affecting feature release plans and incurring opportunity costs.
+
+## Reactive vs Proactive
+Reactive monitoring is common practice because of its usefulness during a crisis. But, monitoring can have even more power when used proactively.
+### Reactive Monitoring
+- Real time CPU, memory or disk space meters
+- Current health status of any server or resource
+- Application logs
+- Operating System logs
+
+### Proactive Monitoring
+- Forecast Infrastructure Costs
+- Monitor the Unknowns
+- Track Bugs to Their True Source
+- Predict Seasonal Spikes and Trends
+
+## Monitoring System Components
+### 1. Time-Series Data
+Time-series data is data that is in a series of time intervals. Some examples include:
+- Blood-sugar level checked at the top of every hour
+- Daily closing value of Microsoft stock
+- Monthly rainfall by city
+- Available disk space by the minute
+
+### 2. Data Aggregator
+A data aggregator is a system that collects and groups data by type or data source. One way to think of data aggregators is like a database with extra tooling to aid in data collection.
+
+### 3. Data Visualizer
+A data visualizer takes copious amounts of seemingly unintelligible data from the data aggregator and produces useful charts and graphs.
+
+## Monitoring Tools
+### Data Aggregator	###
+- **Graphite**	Mature, Open-Source, Installable	Grafana
+- **Loggly**	Managed, Cloud-Based, Powerful tooling	Built-In
+- **Datadog**	Managed, Cloud-Based, Built-in AI/ML	Built-In
+- **Prometheus**	Open Source, Lightweight, Self-Contained, Installable	Grafana
+- **Logstash**	Open Source, Cloud-Based or Installable	Kibana
+- **CloudWatch**	Built-In to AWS	Built-In
+
+## Exporters in Prometheus
+![exporter with prometheus]()
+### Available Exporters
+- **Node exporter**	Provides basic operating system metrics like CPU, Disk and Memory Usage.
+- **Nginx VTS Exporter**	Provides metrics on connections, server zones, and upstream requests.
+- **Blackbox exporter**	The Blackbox exporter allows black-box probing of endpoints over HTTP, HTTPS, DNS, TCP, and ICMP
+- **Github Exporter**	Provides metrics on repository commits, pull requests, and issues.
+- **MongoDB Exporter**	The MongoDB exporter periodically scrapes MongoDB server stats.
+- **Jira Exporter**	Provides metrics on Jira issues and projects.
+- **Swagger Stats**	API performance stats available to Prometheus
+- **AWS Health Exporter**	Provides health metrics on all AWS services and regions.
+
+## Data Visualizer
+### Data Visualization Tools
+- **Grafana**	Recommended for Prometheus
+- **Kibana**	Recommended for Elastic Stack
+- **DataDog**	Built in to DataDog cloud-based service
+- **Expression Browser**	Built in to Prometheus, okay for experiments
+
+## Alerting Channels
+- Email
+- Chat Tool
+- Desktop Notifications
+- Phone Calls
+
+
+## Helpful Alerting
+Alerts should point the way to the source of the problem so that it can be fixed quickly.
+
+- Alerts should always include a brief description of the problem (the easier to understand, the better).
+- For code-related issues like run-time exceptions, a stack trace and source code line number is always appreciated.
+- When a URL is available to direct the troubleshooting engineer to the problem, it should be included in the alert.
+
+
 
 
 # 2. Auto-Deploy Application With Monitoring and Logging
