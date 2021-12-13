@@ -149,10 +149,95 @@ Container Resource Monitoring records generic time-series metrics about containe
 #### Cluster-level Logging
 A cluster-level logging mechanism is responsible for saving container logs to a central log store with search/browsing interface.
 
-- **Nodes**
-- **Controllers**
-- **kube-scheduler**
+## Nodes
+Kubernetes runs your workload by placing containers into Pods to run on Nodes. A node may be a virtual or physical machine, depending on the cluster. Each node is managed by the control plane and contains the services necessary to run Pods.
+The components on a node include the kubelet, a container runtime, and the kube-proxy.
+### Management Nodes
+There are two main ways to have Nodes added to the API server:
+- The kubelet on a node self-registers to the control plane
+- You (or another human user) manually add a Node object
 
+### Node name uniqueness
+The name identifies a Node. Two Nodes cannot have the same name at the same time. Kubernetes also assumes that a resource with the same name is the same object.
+### Self-registration of Nodes
+When the kubelet flag --register-node is true (the default), the kubelet will attempt to register itself with the API server. This is the preferred pattern, used by most distros.
+
+For self-registration, the kubelet is started with the following options:
+- **--kubeconfig** - Path to credentials to authenticate itself to the API server.
+
+- **--cloud-provider** - How to talk to a cloud provider to read metadata about itself.
+
+- **--register-node** - Automatically register with the API server.
+
+- **--register-with-taints** - Register the node with the given list of taints ```(comma separated <key>=<value>:<effect>)```. No-op if register-node is false.
+
+- **--node-ip** - IP address of the node.
+
+- **--node-labels** - Labels to add when registering the node in the cluster (see label restrictions enforced by the NodeRestriction admission plugin).
+
+- **--node-status-update-frequency** - Specifies how often kubelet posts node status to master.
+
+  
+### Manual Node administration
+You can create and modify Node objects using kubectl.
+
+When you want to create Node objects manually, set the kubelet flag ```--register-node=false```.
+
+You can modify Node objects regardless of the setting of --register-node. For example, you can set labels on an existing Node or mark it unschedulable.
+
+You can use labels on Nodes in conjunction with node selectors on Pods to control scheduling. For example, you can constrain a Pod to only be eligible to run on a subset of the available nodes.
+
+Marking a node as unschedulable prevents the scheduler from placing new pods onto that Node but does not affect existing Pods on the Node. This is useful as a preparatory step before a node reboot or other maintenance.
+
+To mark a Node unschedulable, run:
+```kubectl cordon $NODENAME```
+
+## Node status 
+A Node's status contains the following information:
+
+- Addresses
+- Conditions
+- Capacity and Allocatable
+- Info
+  
+### Addresses
+The usage of these fields varies depending on your cloud provider or bare metal configuration.
+
+- HostName: The hostname as reported by the node's kernel. Can be overridden via the kubelet --hostname-override parameter.
+- ExternalIP: Typically the IP address of the node that is externally routable (available from outside the cluster).
+- InternalIP: Typically the IP address of the node that is routable only within the cluster.  
+
+### Conditions
+The conditions field describes the status of all Running nodes. Examples of conditions include:
+- **Ready**	True if the node is healthy and ready to accept pods, False if the node is not healthy and is not accepting pods, and Unknown if the node controller has not heard from the node in the last node-monitor-grace-period (default is 40 seconds)
+- **DiskPressure**	True if pressure exists on the disk size—that is, if the disk capacity is low; otherwise False
+- **MemoryPressure**	True if pressure exists on the node memory—that is, if the node memory is low; otherwise False
+- **PIDPressure	True** if pressure exists on the processes—that is, if there are too many processes on the node; otherwise False
+- **NetworkUnavailable**	True if the network for the node is not correctly configured, otherwise False
+### Capacity and Allocatable
+Describes the resources available on the node: CPU, memory, and the maximum number of pods that can be scheduled onto the node.
+
+The fields in the capacity block indicate the total amount of resources that a Node has. The allocatable block indicates the amount of resources on a Node that is available to be consumed by normal Pods.
+
+### Info
+Describes general information about the node, such as kernel version, Kubernetes version (kubelet and kube-proxy version), container runtime details, and which operating system the node uses. The kubelet gathers this information from the node and publishes it into the Kubernetes API.
+
+## Heartbeats
+Heartbeats, sent by Kubernetes nodes, help your cluster determine the availability of each node, and to take action when failures are detected.
+
+For nodes there are two forms of heartbeats:
+
+- updates to the .status of a Node
+- Lease objects within the kube-node-lease namespace. Each Node has an associated Lease object.
+Compared to updates to .status of a Node, a Lease is a lightweight resource. Using Leases for heartbeats reduces the performance impact of these updates for large clusters.
+
+The kubelet is responsible for creating and updating the .status of Nodes, and for updating their related Leases.
+
+- The kubelet updates the node's .status either when there is change in status or if there has been no update for a configured interval. The default interval for .status updates to Nodes is 5 minutes, which is much longer than the 40 second default timeout for unreachable nodes.
+- The kubelet creates and then updates its Lease object every 10 seconds (the default update interval). Lease updates occur independently from updates to the Node's .status. If the Lease update fails, the kubelet retries, using exponential backoff that starts at 200 milliseconds and capped at 7 seconds.
+
+## Controllers
+## kube-scheduler
 
 
 ## The Kubernetes API
