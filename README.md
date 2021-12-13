@@ -19,6 +19,9 @@ Try to build my structure knowledge
 │       └── 05_GenerateFaces
 ├── AutonomousSystem
 │   └── Robotics_SoftwareEngineer
+│       ├── 01_build_my_gazebo_world
+│       ├── 02_go_chase_it
+│       └── 03_where_am_i_robot
 ├── CloudComputing
 │   ├── CloudDevOpsEngineer
 │   │   ├── 01_DeployStaticWebsiteOn_AWS
@@ -26,6 +29,7 @@ Try to build my structure knowledge
 │   │   ├── 03_Auto-Deploy_AppWith_Monitoring_Logging
 │   │   ├── 04_Microservices_ScaleOn_AWS_And_Kubernetes
 │   │   ├── 05_JenkinsDeploy_AppOn_AWS
+│   │   ├── 06_K8S_concepts
 │   │   ├── example
 │   │   └── README.md
 │   └── README.md
