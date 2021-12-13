@@ -61,8 +61,8 @@ The worker node(s) host the Pods that are the components of the application work
 
 This document outlines the various components you need to have for a complete and working Kubernetes cluster.
 
-![structure of k8s]()
-![structure of k8s]()
+![structure of k8s](https://github.com/davincizhao/Education/blob/main/CloudComputing/CloudDevOpsEngineer/06_K8S_concepts/k8s.png)
+![structure of k8s](https://github.com/davincizhao/Education/blob/main/CloudComputing/CloudDevOpsEngineer/06_K8S_concepts/k8s2.png)
 
 ### Control Plane Components(Master node)
 The control plane's components make global decisions about the cluster (for example, scheduling), as well as detecting and responding to cluster events (for example, starting up a new pod when a deployment's replicas field is unsatisfied).
@@ -236,7 +236,161 @@ The kubelet is responsible for creating and updating the .status of Nodes, and f
 - The kubelet updates the node's .status either when there is change in status or if there has been no update for a configured interval. The default interval for .status updates to Nodes is 5 minutes, which is much longer than the 40 second default timeout for unreachable nodes.
 - The kubelet creates and then updates its Lease object every 10 seconds (the default update interval). Lease updates occur independently from updates to the Node's .status. If the Lease update fails, the kubelet retries, using exponential backoff that starts at 200 milliseconds and capped at 7 seconds.
 
+## Node controller
+The node controller is a Kubernetes control plane component that manages various aspects of nodes.
+
+The node controller has multiple roles in a node's life. The first is assigning a CIDR block to the node when it is registered (if CIDR assignment is turned on).
+
+The second is keeping the node controller's internal list of nodes up to date with the cloud provider's list of available machines. When running in a cloud environment and whenever a node is unhealthy, the node controller asks the cloud provider if the VM for that node is still available. If not, the node controller deletes the node from its list of nodes.
+
+The third is monitoring the nodes' health. The node controller is responsible for:
+
+- In the case that a node becomes unreachable, updating the NodeReady condition of within the Node's .status. In this case the node controller sets the NodeReady condition to ConditionUnknown.
+- If a node remains unreachable: triggering API-initiated eviction for all of the Pods on the unreachable node. By default, the node controller waits 5 minutes between marking the node as ConditionUnknown and submitting the first eviction request.
+The node controller checks the state of each node every ```--node-monitor-period``` seconds.
+
+### Rate limits on eviction
+In most cases, the node controller limits the eviction rate to --node-eviction-rate (default 0.1) per second, meaning it won't evict pods from more than 1 node per 10 seconds.
+
+The node eviction behavior changes when a node in a given availability zone becomes unhealthy. The node controller checks what percentage of nodes in the zone are unhealthy (NodeReady condition is ConditionUnknown or ConditionFalse) at the same time:
+
+- If the fraction of unhealthy nodes is at least --unhealthy-zone-threshold (default 0.55), then the eviction rate is reduced.
+- If the cluster is small (i.e. has less than or equal to --large-cluster-size-threshold nodes - default 50), then evictions are stopped.
+Otherwise, the eviction rate is reduced to --secondary-node-eviction-rate (default 0.01) per second.
+The reason these policies are implemented per availability zone is because one availability zone might become partitioned from the master while the others remain connected. - If your cluster does not span multiple cloud provider availability zones, then the eviction mechanism does not take per-zone unavailability into account.
+
+A key reason for spreading your nodes across availability zones is so that the workload can be shifted to healthy zones when one entire zone goes down. Therefore, if all nodes in a zone are unhealthy, then the node controller evicts at the normal rate of --node-eviction-rate. The corner case is when all zones are completely unhealthy (none of the nodes in the cluster are healthy). In such a case, the node controller assumes that there is some problem with connectivity between the control plane and the nodes, and doesn't perform any evictions. (If there has been an outage and some nodes reappear, the node controller does evict pods from the remaining nodes that are unhealthy or unreachable).
+
+The node controller is also responsible for evicting pods running on nodes with NoExecute taints, unless those pods tolerate that taint. The node controller also adds taints corresponding to node problems like node unreachable or not ready. This means that the scheduler won't place Pods onto unhealthy nodes.
+
+## Resource capacity tracking
+Node objects track information about the Node's resource capacity: for example, the amount of memory available and the number of CPUs. Nodes that self register report their capacity during registration. If you manually add a Node, then you need to set the node's capacity information when you add it.
+
+The Kubernetes scheduler ensures that there are enough resources for all the Pods on a Node. The scheduler checks that the sum of the requests of containers on the node is no greater than the node's capacity. That sum of requests includes all containers managed by the kubelet, but excludes any containers started directly by the container runtime, and also excludes any processes running outside of the kubelet's control.
+
+## Node topology
+**FEATURE STATE: Kubernetes v1.16 [alpha]**
+If you have enabled the ```TopologyManager``` feature gate, then the kubelet can use topology hints when making resource assignment decisions. See Control Topology Management Policies on a Node for more information.
+
+## Graceful node shutdown
+**FEATURE STATE: Kubernetes v1.21 [beta]**
+The kubelet attempts to detect node system shutdown and terminates pods running on the node.
+
+Kubelet ensures that pods follow the normal pod termination process during the node shutdown.
+
+The Graceful node shutdown feature depends on systemd since it takes advantage of systemd inhibitor locks to delay the node shutdown with a given duration.
+
+Graceful node shutdown is controlled with the ```GracefulNodeShutdown``` feature gate which is enabled by default in 1.21.
+
+Note that by default, both configuration options described below, shutdownGracePeriod and shutdownGracePeriodCriticalPods are set to zero, thus not activating Graceful node shutdown functionality. To activate the feature, the two kubelet config settings should be configured appropriately and set to non-zero values.
+
+During a graceful shutdown, kubelet terminates pods in two phases:
+
+- Terminate regular pods running on the node.
+- Terminate critical pods running on the node.
+Graceful node shutdown feature is configured with two KubeletConfiguration options:
+
+- shutdownGracePeriod:
+Specifies the total duration that the node should delay the shutdown by. This is the total grace period for pod termination for both regular and critical pods.
+- shutdownGracePeriodCriticalPods:
+Specifies the duration used to terminate critical pods during a node shutdown. This value should be less than ```shutdownGracePeriod```.
+
+For example, if ```shutdownGracePeriod=30s```, and ```shutdownGracePeriodCriticalPods=10s```, kubelet will delay the node shutdown by 30 seconds. During the shutdown, the first 20 (30-10) seconds would be reserved for gracefully terminating normal pods, and the last 10 seconds would be reserved for terminating critical pods.
+
+### Pod Priority based graceful node shutdown 
+**FEATURE STATE: Kubernetes v1.23 [alpha]**
+To provide more flexibility during graceful node shutdown around the ordering of pods during shutdown, graceful node shutdown honors the PriorityClass for Pods, provided that you enabled this feature in your cluster. The feature allows allows cluster administers to explicitly define the ordering of pods during graceful node shutdown based on priority classes.
+
+The Graceful Node Shutdown feature, as described above, shuts down pods in two phases, non-critical pods, followed by critical pods. If additional flexibility is needed to explicitly define the ordering of pods during shutdown in a more granular way, pod priority based graceful shutdown can be used.
+
+When graceful node shutdown honors pod priorities, this makes it possible to do graceful node shutdown in multiple phases, each phase shutting down a particular priority class of pods. The kubelet can be configured with the exact phases and shutdown time per phase.
+
+The corresponding kubelet config YAML configuration would be:
+```
+shutdownGracePeriodByPodPriority:
+  - priority: 100000
+    shutdownGracePeriodSeconds: 10
+  - priority: 10000
+    shutdownGracePeriodSeconds: 180
+  - priority: 1000
+    shutdownGracePeriodSeconds: 120
+  - priority: 0
+    shutdownGracePeriodSeconds: 60
+```
+Using this feature, requires enabling the ```GracefulNodeShutdownBasedOnPodPriority``` feature gate, and setting the kubelet config's ```ShutdownGracePeriodByPodPriority``` to the desired configuration containing the pod priority class values and their respective shutdown periods.
+
+## Swap memory management
+**FEATURE STATE: Kubernetes v1.22 [alpha]**
+Prior to Kubernetes 1.22, nodes did not support the use of swap memory, and a kubelet would by default fail to start if swap was detected on a node. In 1.22 onwards, swap memory support can be enabled on a per-node basis.
+
+To enable swap on a node, the ```NodeSwap``` feature gate must be enabled on the kubelet, and the ```--fail-swap-on``` command line flag or ```failSwapOn``` configuration setting must be set to false.
+
+**Warning:** When the memory swap feature is turned on, Kubernetes data such as the content of Secret objects that were written to tmpfs now could be swapped to disk.
+A user can also optionally configure memorySwap.swapBehavior in order to specify how a node will use swap memory. For example,
+```
+memorySwap:
+  swapBehavior: LimitedSwap
+```
+The available configuration options for swapBehavior are:
+
+- ```LimitedSwap```: Kubernetes workloads are limited in how much swap they can use. Workloads on the node not managed by Kubernetes can still swap.
+- ```UnlimitedSwap```: Kubernetes workloads can use as much swap memory as they request, up to the system limit.
+If configuration for ```memorySwap``` is not specified and the feature gate is enabled, by default the kubelet will apply the same behaviour as the LimitedSwap setting.
+
+The behaviour of the LimitedSwap setting depends if the node is running with v1 or v2 of control groups (also known as "cgroups"):
+
+- **cgroupsv1:** Kubernetes workloads can use any combination of memory and swap, up to the pod's memory limit, if set.
+- **cgroupsv2:** Kubernetes workloads cannot use swap memory.
+
+## Control Plane-Node Communication
+### Node to Control Plane
+Kubernetes has a "hub-and-spoke" API pattern. All API usage from nodes (or the pods they run) terminates at the apiserver. None of the other control plane components are designed to expose remote services. The apiserver is configured to listen for remote connections on a secure HTTPS port (typically 443) with one or more forms of client authentication enabled. One or more forms of authorization should be enabled, especially if anonymous requests or service account tokens are allowed.
+
+Nodes should be provisioned with the public root certificate for the cluster such that they can connect securely to the apiserver along with valid client credentials. A good approach is that the client credentials provided to the kubelet are in the form of a client certificate. See kubelet TLS bootstrapping for automated provisioning of kubelet client certificates.
+
+Pods that wish to connect to the apiserver can do so securely by leveraging a service account so that Kubernetes will automatically inject the public root certificate and a valid bearer token into the pod when it is instantiated. The kubernetes service (in default namespace) is configured with a virtual IP address that is redirected (via kube-proxy) to the HTTPS endpoint on the apiserver.
+
+The control plane components also communicate with the cluster apiserver over the secure port.
+
+As a result, the default operating mode for connections from the nodes and pods running on the nodes to the control plane is secured by default and can run over untrusted and/or public networks.
+
+### Control Plane to node
+There are two primary communication paths from the control plane (apiserver) to the nodes. 
+- The first is from the apiserver to the kubelet process which runs on each node in the cluster. 
+- The second is from the apiserver to any node, pod, or service through the apiserver's proxy functionality.
+
+#### apiserver to kubelet
+The connections from the apiserver to the kubelet are used for:
+
+- Fetching logs for pods.
+- Attaching (through kubectl) to running pods.
+- Providing the kubelet's port-forwarding functionality.
+These connections terminate at the kubelet's HTTPS endpoint. By default, the apiserver does not verify the kubelet's serving certificate, which makes the connection subject to man-in-the-middle attacks and **unsafe** to run over untrusted and/or public networks.
+
+To verify this connection, use the ```--kubelet-certificate-authority``` flag to provide the apiserver with a root certificate bundle to use to verify the kubelet's serving certificate.
+
+If that is not possible, use **SSH tunneling** between the apiserver and kubelet if required to avoid connecting over an untrusted or public network.
+
+Finally, Kubelet authentication and/or authorization should be enabled to secure the kubelet API.
+
+#### apiserver to nodes, pods, and services
+The connections from the apiserver to a node, pod, or service default to plain HTTP connections and are therefore neither authenticated nor encrypted. They can be run over a secure HTTPS connection by prefixing https: to the node, pod, or service name in the API URL, but they will not validate the certificate provided by the HTTPS endpoint nor provide client credentials. So while the connection will be encrypted, it will not provide any guarantees of integrity. These connections are not currently safe to run over untrusted or public networks.
+
+#### SSH tunnels
+Kubernetes supports SSH tunnels to protect the control plane to nodes communication paths. In this configuration, the apiserver initiates an SSH tunnel to each node in the cluster (connecting to the ssh server listening on port 22) and passes all traffic destined for a kubelet, node, pod, or service through the tunnel. This tunnel ensures that the traffic is not exposed outside of the network in which the nodes are running.
+
+SSH tunnels are currently deprecated, so you shouldn't opt to use them unless you know what you are doing. The Konnectivity service is a replacement for this communication channel.
+
+#### Konnectivity service
+FEATURE STATE: Kubernetes v1.18 [beta]
+As a replacement to the SSH tunnels, the Konnectivity service provides TCP level proxy for the control plane to cluster communication. The Konnectivity service consists of two parts: the Konnectivity server in the control plane network and the Konnectivity agents in the nodes network. The Konnectivity agents initiate connections to the Konnectivity server and maintain the network connections. After enabling the Konnectivity service, all control plane to nodes traffic goes through these connections.
+
+Follow the Konnectivity service task to set up the Konnectivity service in your cluster.
+
+
 ## Controllers
+
+
 ## kube-scheduler
 
 
