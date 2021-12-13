@@ -181,7 +181,7 @@ A data visualizer takes copious amounts of seemingly unintelligible data from th
 - **CloudWatch**	Built-In to AWS	Built-In
 
 ## Exporters in Prometheus
-![exporter with prometheus]()
+![exporter with prometheus](https://github.com/davincizhao/Education/blob/main/CloudComputing/CloudDevOpsEngineer/03_Auto-Deploy_AppWith_Monitoring_Logging/exporter.png)
 ### Available Exporters
 - **Node exporter**	Provides basic operating system metrics like CPU, Disk and Memory Usage.
 - **Nginx VTS Exporter**	Provides metrics on connections, server zones, and upstream requests.
