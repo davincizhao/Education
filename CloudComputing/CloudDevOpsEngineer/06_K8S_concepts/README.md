@@ -678,8 +678,8 @@ Factors that need to be taken into account for scheduling decisions include indi
 #### Node selection in kube-scheduler
 kube-scheduler selects a node for the pod in a 2-step operation:
 
-Filtering
-Scoring
+- Filtering
+- Scoring
 The filtering step finds the set of Nodes where it's feasible to schedule the Pod. For example, the PodFitsResources filter checks whether a candidate Node has enough available resource to meet a Pod's specific resource requests. After this step, the node list contains any suitable Nodes; often, there will be more than one. If the list is empty, that Pod isn't (yet) schedulable.
 
 In the scoring step, the scheduler ranks the remaining nodes to choose the most suitable Pod placement. The scheduler assigns a score to each Node that survived filtering, basing this score on the active scoring rules.
@@ -697,3 +697,56 @@ The Kubernetes API lets you query and manipulate the state of objects in Kuberne
 
 ## Working with Kubernetes Objects
 Kubernetes objects are persistent entities in the Kubernetes system. Kubernetes uses these entities to represent the state of your cluster. Learn about the Kubernetes object model and how to work with these objects.
+
+
+# Services, Load Balancing, and Networking
+Kubernetes networking addresses four concerns:
+
+- Containers within a Pod use networking to communicate via loopback.
+- Cluster networking provides communication between different Pods.
+- The Service resource lets you expose an application running in Pods to be reachable from outside your cluster.
+- You can also use Services to publish services only for consumption inside your cluster.
+
+## Service
+An abstract way to expose an application running on a set of Pods as a network service.
+With Kubernetes you don't need to modify your application to use an unfamiliar service discovery mechanism. Kubernetes gives Pods their own IP addresses and a single DNS name for a set of Pods, and can load-balance across them.
+
+### Motivation
+Kubernetes Pods are created and destroyed to match the state of your cluster. Pods are nonpermanent resources. If you use a Deployment to run your app, it can create and destroy Pods dynamically.
+
+Each Pod gets its own IP address, however in a Deployment, the set of Pods running in one moment in time could be different from the set of Pods running that application a moment later.
+
+This leads to a problem: if some set of Pods (call them "backends") provides functionality to other Pods (call them "frontends") inside your cluster, how do the frontends find out and keep track of which IP address to connect to, so that the frontend can use the backend part of the workload?
+
+
+### Service resources
+In Kubernetes, a Service is an abstraction which defines a logical set of Pods and a policy by which to access them (sometimes this pattern is called a micro-service). The set of Pods targeted by a Service is usually determined by a selector. To learn about other ways to define Service endpoints, see Services without selectors.
+
+For example, consider a stateless image-processing backend which is running with 3 replicas. Those replicas are fungible—frontends do not care which backend they use. While the actual Pods that compose the backend set may change, the frontend clients should not need to be aware of that, nor should they need to keep track of the set of backends themselves.
+
+The Service abstraction enables this decoupling.
+
+#### Cloud-native service discovery
+If you're able to use Kubernetes APIs for service discovery in your application, you can query the API server for Endpoints, that get updated whenever the set of Pods in a Service changes.
+
+For non-native applications, Kubernetes offers ways to place a network port or load balancer in between your application and the backend Pods.
+
+### Defining a Service
+A Service in Kubernetes is a REST object, similar to a Pod. Like all of the REST objects, you can POST a Service definition to the API server to create a new instance. The name of a Service object must be a valid RFC 1035 label name.
+
+For example, suppose you have a set of Pods where each listens on TCP port 9376 and contains a label ```app=MyApp```:
+
+```
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-service
+spec:
+  selector:
+    app: MyApp
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 9376
+```
+
