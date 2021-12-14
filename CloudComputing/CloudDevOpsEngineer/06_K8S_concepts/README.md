@@ -389,9 +389,307 @@ Follow the Konnectivity service task to set up the Konnectivity service in your 
 
 
 ## Controllers
+In robotics and automation, a control loop is a non-terminating loop that regulates the state of a system.
+
+Here is one example of a control loop: a thermostat in a room.
+
+When you set the temperature, that's telling the thermostat about your desired state. The actual room temperature is the current state. The thermostat acts to bring the current state closer to the desired state, by turning equipment on or off.
+
+In Kubernetes, controllers are control loops that watch the state of your cluster, then make or request changes where needed. Each controller tries to move the current cluster state closer to the desired state.
+### Controller pattern
+A controller tracks at least one Kubernetes resource type. These objects have a spec field that represents the desired state. The controller(s) for that resource are responsible for making the current state come closer to that desired state.
+
+The controller might carry the action out itself; more commonly, in Kubernetes, a controller will send messages to the API server that have useful side effects. You'll see examples of this below.
+
+#### Control via API server
+The Job controller is an example of a Kubernetes built-in controller. Built-in controllers manage state by interacting with the cluster API server.
+
+Job is a Kubernetes resource that runs a Pod, or perhaps several Pods, to carry out a task and then stop.
+
+(Once scheduled, Pod objects become part of the desired state for a kubelet).
+
+When the Job controller sees a new task it makes sure that, somewhere in your cluster, the kubelets on a set of Nodes are running the right number of Pods to get the work done. The Job controller does not run any Pods or containers itself. Instead, the Job controller tells the API server to create or remove Pods. Other components in the control plane act on the new information (there are new Pods to schedule and run), and eventually the work is done.
+
+After you create a new Job, the desired state is for that Job to be completed. The Job controller makes the current state for that Job be nearer to your desired state: creating Pods that do the work you wanted for that Job, so that the Job is closer to completion.
+
+Controllers also update the objects that configure them. For example: once the work is done for a Job, the Job controller updates that Job object to mark it Finished.
+
+(This is a bit like how some thermostats turn a light off to indicate that your room is now at the temperature you set).
+
+#### Direct control
+By contrast with Job, some controllers need to make changes to things outside of your cluster.
+
+For example, if you use a control loop to make sure there are enough Nodes in your cluster, then that controller needs something outside the current cluster to set up new Nodes when needed.
+
+Controllers that interact with external state find their desired state from the API server, then communicate directly with an external system to bring the current state closer in line.
+
+(There actually is a controller that horizontally scales the nodes in your cluster.)
+
+The important point here is that the controller makes some change to bring about your desired state, and then reports current state back to your cluster's API server. Other control loops can observe that reported data and take their own actions.
+
+In the thermostat example, if the room is very cold then a different controller might also turn on a frost protection heater. With Kubernetes clusters, the control plane indirectly works with IP address management tools, storage services, cloud provider APIs, and other services by extending Kubernetes to implement that.
+
+### Desired versus current state
+Kubernetes takes a cloud-native view of systems, and is able to handle constant change.
+
+Your cluster could be changing at any point as work happens and control loops automatically fix failures. This means that, potentially, your cluster never reaches a stable state.
+
+As long as the controllers for your cluster are running and able to make useful changes, it doesn't matter if the overall state is stable or not.
+
+### Design
+As a tenet of its design, Kubernetes uses lots of controllers that each manage a particular aspect of cluster state. Most commonly, a particular control loop (controller) uses one kind of resource as its desired state, and has a different kind of resource that it manages to make that desired state happen. For example, a controller for Jobs tracks Job objects (to discover new work) and Pod objects (to run the Jobs, and then to see when the work is finished). In this case something else creates the Jobs, whereas the Job controller creates Pods.
+
+It's useful to have simple controllers rather than one, monolithic set of control loops that are interlinked. Controllers can fail, so Kubernetes is designed to allow for that.
+
+**Note:**
+There can be several controllers that create or update the same kind of object. Behind the scenes, Kubernetes controllers make sure that they only pay attention to the resources linked to their controlling resource.
+
+For example, you can have Deployments and Jobs; these both create Pods. The Job controller does not delete the Pods that your Deployment created, because there is information (labels) the controllers can use to tell those Pods apart.
+
+### Ways of running controllers
+Kubernetes comes with a set of built-in controllers that run inside the kube-controller-manager. These built-in controllers provide important core behaviors.
+
+The Deployment controller and Job controller are examples of controllers that come as part of Kubernetes itself ("built-in" controllers). Kubernetes lets you run a resilient control plane, so that if any of the built-in controllers were to fail, another part of the control plane will take over the work.
+
+You can find controllers that run outside the control plane, to extend Kubernetes. Or, if you want, you can write a new controller yourself. You can run your own controller as a set of Pods, or externally to Kubernetes. What fits best will depend on what that particular controller does.
+
+## Cloud Controller Manager
+**FEATURE STATE: Kubernetes v1.11 [beta]**
+Cloud infrastructure technologies let you run Kubernetes on public, private, and hybrid clouds. Kubernetes believes in automated, API-driven infrastructure without tight coupling between components.
+
+The cloud-controller-manager is a Kubernetes control plane component that embeds cloud-specific control logic. The cloud controller manager lets you link your cluster into your cloud provider's API, and separates out the components that interact with that cloud platform from components that only interact with your cluster.
+
+By decoupling the interoperability logic between Kubernetes and the underlying cloud infrastructure, the cloud-controller-manager component enables cloud providers to release features at a different pace compared to the main Kubernetes project.
+
+The cloud-controller-manager is structured using a plugin mechanism that allows different cloud providers to integrate their platforms with Kubernetes
+
+### Design
+![design](https://d33wubrfki0l68.cloudfront.net/2475489eaf20163ec0f54ddc1d92aa8d4c87c96b/e7c81/images/docs/components-of-kubernetes.svg)
+The cloud controller manager runs in the control plane as a replicated set of processes (usually, these are containers in Pods). Each cloud-controller-manager implements multiple controllers in a single process.
+
+### Cloud controller manager functions
+The controllers inside the cloud controller manager include:
+
+#### Node controller
+The node controller is responsible for updating Node objects when new servers are created in your cloud infrastructure. The node controller obtains information about the hosts running inside your tenancy with the cloud provider. The node controller performs the following functions:
+
+- Update a Node object with the corresponding server's unique identifier obtained from the cloud provider API.
+- Annotating and labelling the Node object with cloud-specific information, such as the region the node is deployed into and the resources (CPU, memory, etc) that it has available.
+- Obtain the node's hostname and network addresses.
+- Verifying the node's health. In case a node becomes unresponsive, this controller checks with your cloud provider's API to see if the server has been deactivated / deleted / terminated. If the node has been deleted from the cloud, the controller deletes the Node object from your Kubernetes cluster.
+Some cloud provider implementations split this into a node controller and a separate node lifecycle controller.
+
+#### Route controller
+The route controller is responsible for configuring routes in the cloud appropriately so that containers on different nodes in your Kubernetes cluster can communicate with each other.
+
+Depending on the cloud provider, the route controller might also allocate blocks of IP addresses for the Pod network.
+
+#### Service controller
+Services integrate with cloud infrastructure components such as managed load balancers, IP addresses, network packet filtering, and target health checking. The service controller interacts with your cloud provider's APIs to set up load balancers and other infrastructure components when you declare a Service resource that requires them.
+
+### Authorization
+This section breaks down the access that the cloud controller managers requires on various API objects, in order to perform its operations.
+
+#### Node controller
+The Node controller only works with Node objects. It requires full access to read and modify Node objects.
+
+```v1/Node```:
+- Get
+- List
+- Create
+- Update
+- Patch
+- Watch
+- Delete
+
+#### Route controller
+The route controller listens to Node object creation and configures routes appropriately. It requires Get access to Node objects.
+
+```v1/Node```:
+- Get
+
+#### Service controller
+The service controller listens to Service object Create, Update and Delete events and then configures Endpoints for those Services appropriately.
+
+To access Services, it requires List, and Watch access. To update Services, it requires Patch and Update access.
+
+To set up Endpoints resources for the Services, it requires access to Create, List, Get, Watch, and Update.
+
+```v1/Service```:
+- List
+- Get
+- Watch
+- Patch
+- Update
 
 
-## kube-scheduler
+#### Others
+The implementation of the core of the cloud controller manager requires access to create Event objects, and to ensure secure operation, it requires access to create ServiceAccounts.
+
+```v1/Event```:
+- Create
+- Patch
+- Update
+
+```v1/ServiceAccount```:
+
+- Create
+
+The RBAC ClusterRole for the cloud controller manager looks like:
+```
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cloud-controller-manager
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - '*'
+```
+
+## Container Runtime Interface (CRI)
+The CRI is a plugin interface which enables the kubelet to use a wide variety of container runtimes, without having a need to recompile the cluster components.
+
+You need a working container runtime on each Node in your cluster, so that the kubelet can launch Pods and their containers.
+
+The main protocol for the communication between the kubelet and Container Runtime.
+
+The Kubernetes Container Runtime Interface (CRI) defines the main gRPC protocol for the communication between the cluster components kubelet and ￼container runtime.
+
+### The API
+**FEATURE STATE: Kubernetes v1.23 [stable]**
+The kubelet acts as a client when connecting to the container runtime via gRPC. The runtime and image service endpoints have to be available in the container runtime, which can be configured separately within the kubelet by using the --image-service-endpoint and --container-runtime-endpoint command line flags
+
+For Kubernetes v1.23, the kubelet prefers to use CRI v1. If a container runtime does not support v1 of the CRI, then the kubelet tries to negotiate any older supported version. The v1.23 kubelet can also negotiate CRI v1alpha2, but this version is considered as deprecated. If the kubelet cannot negotiate a supported CRI version, the kubelet gives up and doesn't register as a node.
+
+### Upgrading
+When upgrading Kubernetes, then the kubelet tries to automatically select the latest CRI version on restart of the component. If that fails, then the fallback will take place as mentioned above. If a gRPC re-dial was required because the container runtime has been upgraded, then the container runtime must also support the initially selected version or the redial is expected to fail. This requires a restart of the kubelet.
+
+## Garbage Collection
+Garbage collection is a collective term for the various mechanisms Kubernetes uses to clean up cluster resources. This allows the clean up of resources like the following:
+
+- Failed pods
+- Completed Jobs
+- Objects without owner references
+- Unused containers and container images
+- Dynamically provisioned PersistentVolumes with a StorageClass reclaim policy of Delete
+- Stale or expired CertificateSigningRequests (CSRs)
+- Nodes deleted in the following scenarios:
+    - On a cloud when the cluster uses a cloud controller manager
+    - On-premises when the cluster uses an addon similar to a cloud controller manager
+- Node Lease objects
+### Owners and dependents
+Many objects in Kubernetes link to each other through owner references. Owner references tell the control plane which objects are dependent on others. Kubernetes uses owner references to give the control plane, and other API clients, the opportunity to clean up related resources before deleting an object. In most cases, Kubernetes manages owner references automatically.
+
+Ownership is different from the labels and selectors mechanism that some resources also use. For example, consider a Service that creates EndpointSlice objects. The Service uses labels to allow the control plane to determine which EndpointSlice objects are used for that Service. In addition to the labels, each EndpointSlice that is managed on behalf of a Service has an owner reference. Owner references help different parts of Kubernetes avoid interfering with objects they don’t control.
+
+**Note:**
+Cross-namespace owner references are disallowed by design. Namespaced dependents can specify cluster-scoped or namespaced owners. A namespaced owner **must** exist in the same namespace as the dependent. If it does not, the owner reference is treated as absent, and the dependent is subject to deletion once all owners are verified absent.
+
+Cluster-scoped dependents can only specify cluster-scoped owners. In v1.20+, if a cluster-scoped dependent specifies a namespaced kind as an owner, it is treated as having an unresolvable owner reference, and is not able to be garbage collected.
+
+In v1.20+, if the garbage collector detects an invalid cross-namespace ```ownerReference```, or a cluster-scoped dependent with an ```ownerReference``` referencing a namespaced kind, a warning Event with a reason of ```OwnerRefInvalidNamespace``` and an ```involvedObject``` of the invalid dependent is reported. You can check for that kind of Event by running ```kubectl get events -A --field-selector=reason=OwnerRefInvalidNamespace```.
+
+### Cascading deletion
+Kubernetes checks for and deletes objects that no longer have owner references, like the pods left behind when you delete a ReplicaSet. When you delete an object, you can control whether Kubernetes deletes the object's dependents automatically, in a process called cascading deletion. There are two types of cascading deletion, as follows:
+
+- Foreground cascading deletion
+- Background cascading deletion
+You can also control how and when garbage collection deletes resources that have owner references using Kubernetes finalizers.
+
+#### Foreground cascading deletion
+In foreground cascading deletion, the owner object you're deleting first enters a deletion in progress state. In this state, the following happens to the owner object:
+
+- The Kubernetes API server sets the object's metadata.deletionTimestamp field to the time the object was marked for deletion.
+- The Kubernetes API server also sets the metadata.finalizers field to foregroundDeletion.
+- The object remains visible through the Kubernetes API until the deletion process is complete.
+
+After the owner object enters the deletion in progress state, the controller deletes the dependents. After deleting all the dependent objects, the controller deletes the owner object. At this point, the object is no longer visible in the Kubernetes API.
+
+During foreground cascading deletion, the only dependents that block owner deletion are those that have the ownerReference.blockOwnerDeletion=true field. See Use foreground cascading deletion to learn more.
+
+#### Background cascading deletion
+In background cascading deletion, the Kubernetes API server deletes the owner object immediately and the controller cleans up the dependent objects in the background. By default, Kubernetes uses background cascading deletion unless you manually use foreground deletion or choose to orphan the dependent objects.
+
+See Use background cascading deletion to learn more.
+
+#### Orphaned dependents
+When Kubernetes deletes an owner object, the dependents left behind are called orphan objects. By default, Kubernetes deletes dependent objects. To learn how to override this behaviour, see Delete owner objects and orphan dependents.
+
+### Garbage collection of unused containers and images
+The kubelet performs garbage collection on unused images every five minutes and on unused containers every minute. You should avoid using external garbage collection tools, as these can break the kubelet behavior and remove containers that should exist.
+
+To configure options for unused container and image garbage collection, tune the kubelet using a configuration file and change the parameters related to garbage collection using the KubeletConfiguration resource type.
+
+#### Container image lifecycle
+Kubernetes manages the lifecycle of all images through its image manager, which is part of the kubelet, with the cooperation of cadvisor. The kubelet considers the following disk usage limits when making garbage collection decisions:
+
+- HighThresholdPercent
+- LowThresholdPercent
+Disk usage above the configured HighThresholdPercent value triggers garbage collection, which deletes images in order based on the last time they were used, starting with the oldest first. The kubelet deletes images until disk usage reaches the LowThresholdPercent value.
+
+#### Container image garbage collection
+The kubelet garbage collects unused containers based on the following variables, which you can define:
+
+- ```MinAge```: the minimum age at which the kubelet can garbage collect a container. Disable by setting to 0.
+- ```MaxPerPodContainer```: the maximum number of dead containers each Pod pair can have. Disable by setting to less than 0.
+- ```MaxContainers```: the maximum number of dead containers the cluster can have. Disable by setting to less than 0.
+In addition to these variables, the kubelet garbage collects unidentified and deleted containers, typically starting with the oldest first.
+
+MaxPerPodContainer and MaxContainer may potentially conflict with each other in situations where retaining the maximum number of containers per Pod (MaxPerPodContainer) would go outside the allowable total of global dead containers (MaxContainers). In this situation, the kubelet adjusts MaxPodPerContainer to address the conflict. A worst-case scenario would be to downgrade MaxPerPodContainer to 1 and evict the oldest containers. Additionally, containers owned by pods that have been deleted are removed once they are older than MinAge.
+
+**Note:** The kubelet only garbage collects the containers it manages.
+### Configuring garbage collection 
+You can tune garbage collection of resources by configuring options specific to the controllers managing those resources. The following pages show you how to configure garbage collection:
+
+Configuring cascading deletion of Kubernetes objects
+Configuring cleanup of finished Jobs
+
+## Kubernetes Scheduler
+In Kubernetes, scheduling refers to making sure that Pods are matched to Nodes so that Kubelet can run them.
+
+### Scheduling overview
+A scheduler watches for newly created Pods that have no Node assigned. For every Pod that the scheduler discovers, the scheduler becomes responsible for finding the best Node for that Pod to run on. The scheduler reaches this placement decision taking into account the scheduling principles described below.
+
+If you want to understand why Pods are placed onto a particular Node, or if you're planning to implement a custom scheduler yourself, this page will help you learn about scheduling.
+
+### kube-scheduler
+kube-scheduler is the default scheduler for Kubernetes and runs as part of the control plane. kube-scheduler is designed so that, if you want and need to, you can write your own scheduling component and use that instead.
+
+For every newly created pod or other unscheduled pods, kube-scheduler selects an optimal node for them to run on. However, every container in pods has different requirements for resources and every pod also has different requirements. Therefore, existing nodes need to be filtered according to the specific scheduling requirements.
+
+In a cluster, Nodes that meet the scheduling requirements for a Pod are called feasible nodes. If none of the nodes are suitable, the pod remains unscheduled until the scheduler is able to place it.
+
+The scheduler finds feasible Nodes for a Pod and then runs a set of functions to score the feasible Nodes and picks a Node with the highest score among the feasible ones to run the Pod. The scheduler then notifies the API server about this decision in a process called binding.
+
+Factors that need to be taken into account for scheduling decisions include individual and collective resource requirements, hardware / software / policy constraints, affinity and anti-affinity specifications, data locality, inter-workload interference, and so on.
+
+#### Node selection in kube-scheduler
+kube-scheduler selects a node for the pod in a 2-step operation:
+
+Filtering
+Scoring
+The filtering step finds the set of Nodes where it's feasible to schedule the Pod. For example, the PodFitsResources filter checks whether a candidate Node has enough available resource to meet a Pod's specific resource requests. After this step, the node list contains any suitable Nodes; often, there will be more than one. If the list is empty, that Pod isn't (yet) schedulable.
+
+In the scoring step, the scheduler ranks the remaining nodes to choose the most suitable Pod placement. The scheduler assigns a score to each Node that survived filtering, basing this score on the active scoring rules.
+
+Finally, kube-scheduler assigns the Pod to the Node with the highest ranking. If there is more than one node with equal scores, kube-scheduler selects one of these at random.
+
+There are two supported ways to configure the filtering and scoring behavior of the scheduler:
+
+Scheduling Policies allow you to configure Predicates for filtering and Priorities for scoring.
+Scheduling Profiles allow you to configure Plugins that implement different scheduling stages, including: QueueSort, Filter, Score, Bind, Reserve, Permit, and others. You can also configure the kube-scheduler to run different profiles.
 
 
 ## The Kubernetes API
