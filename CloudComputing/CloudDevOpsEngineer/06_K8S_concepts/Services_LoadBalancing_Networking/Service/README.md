@@ -275,3 +275,94 @@ For headless Services that do not define selectors, the endpoints controller doe
 - CNAME records for ExternalName-type Services.
 - A records for any ```Endpoints``` that share a name with the Service, for all other types.
 
+## Publishing Services (ServiceTypes)
+For some parts of your application (for example, frontends) you may want to expose a Service onto an external IP address, that's outside of your cluster.
+
+Kubernetes ```ServiceTypes``` allow you to specify what kind of Service you want. The default is ```ClusterIP``.
+
+```Type``` values and their behaviors are:
+
+- ```ClusterIP```: Exposes the Service on a cluster-internal IP. Choosing this value makes the Service only reachable from within the cluster. This is the default ServiceType.
+- NodePort: Exposes the Service on each Node's IP at a static port (the ```NodePort```). A ClusterIP Service, to which the ```NodePort``` Service routes, is automatically created. You'll be able to contact the ```NodePort``` Service, from outside the cluster, by requesting ```<NodeIP>:<NodePort>```.
+- LoadBalancer: Exposes the Service externally using a cloud provider's load balancer. ```NodePort``` and ```ClusterIP``` Services, to which the external load balancer routes, are automatically created.
+- ExternalName: Maps the Service to the contents of the ```externalName``` field (e.g. ```foo.bar.example.com```), by returning a ```CNAME``` record with its value. No proxying of any kind is set up.
+  
+**Note:** You need either kube-dns version 1.7 or CoreDNS version 0.0.8 or higher to use the ExternalName type.
+You can also use ```Ingress``` to expose your Service. Ingress is not a Service type, but it acts as the entry point for your cluster. It lets you consolidate your routing rules into a single resource as it can expose multiple services under the same IP address.
+
+### Type NodePort
+
+If you set the ```type``` field to ```NodePort```, the Kubernetes control plane allocates a port from a range specified by ```--service-node-port-range``` flag (default: 30000-32767). Each node proxies that port (the same port number on every Node) into your Service. Your Service reports the allocated port in its ```.spec.ports[*].nodePort``` field.
+
+If you want to specify particular IP(s) to proxy the port, you can set the ```--nodeport-addresses``` flag for kube-proxy or the equivalent ```nodePortAddresses``` field of the kube-proxy configuration file to particular IP block(s).
+
+This flag takes a comma-delimited list of IP blocks (e.g. ```10.0.0.0/8```, ```192.0.2.0/25```) to specify IP address ranges that kube-proxy should consider as local to this node.
+
+For example, if you start kube-proxy with the ```--nodeport-addresses=127.0.0.0/8``` flag, kube-proxy only selects the loopback interface for NodePort Services. The default for --nodeport-addresses is an empty list. This means that kube-proxy should consider all available network interfaces for NodePort. (That's also compatible with earlier Kubernetes releases).
+
+If you want a specific port number, you can specify a value in the nodePort field. The control plane will either allocate you that port or report that the API transaction failed. This means that you need to take care of possible port collisions yourself. You also have to use a valid port number, one that's inside the range configured for NodePort use.
+
+Using a NodePort gives you the freedom to set up your own load balancing solution, to configure environments that are not fully supported by Kubernetes, or even to expose one or more nodes' IPs directly.
+
+Note that this Service is visible as ```<NodeIP>:spec.ports[*].nodePort``` and ```.spec.clusterIP:spec.ports[*].port```. If the ```--nodeport-addresses``` flag for kube-proxy or the equivalent field in the kube-proxy configuration file is set, ```<NodeIP>``` would be filtered node IP(s).
+
+For example:
+```
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-service
+spec:
+  type: NodePort
+  selector:
+    app: MyApp
+  ports:
+      # By default and for convenience, the `targetPort` is set to the same value as the `port` field.
+    - port: 80
+      targetPort: 80
+      # Optional field
+      # By default and for convenience, the Kubernetes control plane will allocate a port from a range (default: 30000-32767)
+      nodePort: 30007
+```
+### Type LoadBalancer
+On cloud providers which support external load balancers, setting the type field to LoadBalancer provisions a load balancer for your Service. The actual creation of the load balancer happens asynchronously, and information about the provisioned balancer is published in the Service's ```.status.loadBalancer``` field. For example:
+```
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-service
+spec:
+  selector:
+    app: MyApp
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 9376
+  clusterIP: 10.0.171.239
+  type: LoadBalancer
+status:
+  loadBalancer:
+    ingress:
+    - ip: 192.0.2.127
+```
+Traffic from the external load balancer is directed at the backend Pods. The cloud provider decides how it is load balanced.
+
+Some cloud providers allow you to specify the ```loadBalancerIP```. In those cases, the load-balancer is created with the user-specified ```loadBalancerIP```. If the ```loadBalancerIP``` field is not specified, the loadBalancer is set up with an ephemeral IP address. If you specify a ```loadBalancerIP``` but your cloud provider does not support the feature, the ```loadbalancerIP``` field that you set is ignored.
+
+**Note:**
+On **Azure**, if you want to use a user-specified public type ```loadBalancerIP```, you first need to create a static type public IP address resource. This public IP address resource should be in the same resource group of the other automatically created resources of the cluster. For example, ```MC_myResourceGroup_myAKSCluster_eastus```.
+
+Specify the assigned IP address as loadBalancerIP. Ensure that you have updated the securityGroupName in the cloud provider configuration file. For information about troubleshooting CreatingLoadBalancerFailed permission issues see, Use a static IP address with the Azure Kubernetes Service (AKS) load balancer or ```CreatingLoadBalancerFailed``` on AKS cluster with advanced networking.
+
+### Load balancers with mixed protocol types
+**FEATURE STATE: Kubernetes v1.20 [alpha]**
+By default, for LoadBalancer type of Services, when there is more than one port defined, all ports must have the same protocol, and the protocol must be one which is supported by the cloud provider.
+
+If the feature gate ```MixedProtocolLBService``` is enabled for the kube-apiserver it is allowed to use different protocols when there is more than one port defined.
+
+**Note:** The set of protocols that can be used for LoadBalancer type of Services is still defined by the cloud provider.
+
+### Disabling load balancer NodePort allocation
+FEATURE STATE: Kubernetes v1.20 [alpha]
+Starting in v1.20, you can optionally disable node port allocation for a Service Type=LoadBalancer by setting the field spec.allocateLoadBalancerNodePorts to false. This should only be used for load balancer implementations that route traffic directly to pods as opposed to using node ports. By default, spec.allocateLoadBalancerNodePorts is true and type LoadBalancer Services will continue to allocate node ports. If spec.allocateLoadBalancerNodePorts is set to false on an existing Service with allocated node ports, those node ports will NOT be de-allocated automatically. You must explicitly remove the nodePorts entry in every Service port to de-allocate those node ports. You must enable the ServiceLBNodePortControl feature gate to use this field.
+
