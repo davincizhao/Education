@@ -366,3 +366,309 @@ If the feature gate ```MixedProtocolLBService``` is enabled for the kube-apiserv
 FEATURE STATE: Kubernetes v1.20 [alpha]
 Starting in v1.20, you can optionally disable node port allocation for a Service Type=LoadBalancer by setting the field spec.allocateLoadBalancerNodePorts to false. This should only be used for load balancer implementations that route traffic directly to pods as opposed to using node ports. By default, spec.allocateLoadBalancerNodePorts is true and type LoadBalancer Services will continue to allocate node ports. If spec.allocateLoadBalancerNodePorts is set to false on an existing Service with allocated node ports, those node ports will NOT be de-allocated automatically. You must explicitly remove the nodePorts entry in every Service port to de-allocate those node ports. You must enable the ServiceLBNodePortControl feature gate to use this field.
 
+### Specifying class of load balancer implementation
+**FEATURE STATE: Kubernetes v1.22 [beta]**
+```spec.loadBalancerClass``` enables you to use a load balancer implementation other than the cloud provider default. This feature is available from v1.21, you must enable the ServiceLoadBalancerClass feature gate to use this field in v1.21, and the feature gate is enabled by default from v1.22 onwards. By default, ```spec.loadBalancerClass``` is nil and a ```LoadBalancer``` type of Service uses the cloud provider's default load balancer implementation if the cluster is configured with a cloud provider using the --cloud-provider component flag. If spec.loadBalancerClass is specified, it is assumed that a load balancer implementation that matches the specified class is watching for Services. Any default load balancer implementation (for example, the one provided by the cloud provider) will ignore Services that have this field set. ```spec.loadBalancerClass``` can be set on a Service of type LoadBalancer only. Once set, it cannot be changed. The value of spec.loadBalancerClass must be a label-style identifier, with an optional prefix such as ```"internal-vip"``` or ```"example.com/internal-vip"```. Unprefixed names are reserved for end-users.
+
+### Internal load balancer
+In a mixed environment it is sometimes necessary to route traffic from Services inside the same (virtual) network address block.
+
+In a split-horizon DNS environment you would need two Services to be able to route both external and internal traffic to your endpoints.
+
+To set an internal load balancer, add one of the following annotations to your Service depending on the cloud Service provider you're using.
+AWS annotations
+```
+[...]
+metadata:
+    name: my-service
+    annotations:
+        service.beta.kubernetes.io/aws-load-balancer-internal: "true"
+[...]
+```
+### TLS support on AWS
+For partial TLS / SSL support on clusters running on AWS, you can add three annotations to a ```LoadBalancer``` service:
+```
+metadata:
+  name: my-service
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-ssl-cert: arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012
+```
+The first specifies the ARN of the certificate to use. It can be either a certificate from a third party issuer that was uploaded to IAM or one created within AWS Certificate Manager.
+
+```
+metadata:
+  name: my-service
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: (https|http|ssl|tcp)
+```
+The second annotation specifies which protocol a Pod speaks. For HTTPS and SSL, the ELB expects the Pod to authenticate itself over the encrypted connection, using a certificate.
+
+HTTP and HTTPS selects layer 7 proxying: the ELB terminates the connection with the user, parses headers, and injects the ```X-Forwarded-For``` header with the user's IP address (Pods only see the IP address of the ELB at the other end of its connection) when forwarding requests.
+
+TCP and SSL selects layer 4 proxying: the ELB forwards traffic without modifying the headers.
+
+In a mixed-use environment where some ports are secured and others are left unencrypted, you can use the following annotations:
+```
+    metadata:
+      name: my-service
+      annotations:
+        service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
+        service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "443,8443"
+```
+In the above example, if the Service contained three ports,``` 80```, ```443```, and ```8443```, then ```443``` and ```8443``` would use the SSL certificate, but 80 would be proxied HTTP.
+
+From Kubernetes v1.9 onwards you can use predefined AWS SSL policies with HTTPS or SSL listeners for your Services. To see which policies are available for use, you can use the ```aws``` command line tool:
+```
+aws elb describe-load-balancer-policies --query 'PolicyDescriptions[].PolicyName'
+```
+You can then specify any one of those policies using the "```service.beta.kubernetes.io/aws-load-balancer-ssl-negotiation-policy```" annotation; for example:
+```
+    metadata:
+      name: my-service
+      annotations:
+        service.beta.kubernetes.io/aws-load-balancer-ssl-negotiation-policy: "ELBSecurityPolicy-TLS-1-2-2017-01"
+```
+### PROXY protocol support on AWS
+To enable PROXY protocol support for clusters running on AWS, you can use the following service annotation:
+```
+    metadata:
+      name: my-service
+      annotations:
+        service.beta.kubernetes.io/aws-load-balancer-proxy-protocol: "*"
+```
+Since version 1.3.0, the use of this annotation applies to all ports proxied by the ELB and cannot be configured otherwise.
+
+## ELB Access Logs on AWS
+There are several annotations to manage access logs for ELB Services on AWS.
+
+- The annotation ```service.beta.kubernetes.io/aws-load-balancer-access-log-enabled``` controls whether access logs are enabled.
+
+- The annotation ```service.beta.kubernetes.io/aws-load-balancer-access-log-emit-interval``` controls the interval in minutes for publishing the access logs. You can specify an interval of either 5 or 60 minutes.
+
+- The annotation ```service.beta.kubernetes.io/aws-load-balancer-access-log-s3-bucket-name``` controls the name of the Amazon S3 bucket where load balancer access logs are stored.
+
+- The annotation ```service.beta.kubernetes.io/aws-load-balancer-access-log-s3-bucket-prefix``` specifies the logical hierarchy you created for your Amazon S3 bucket.
+
+
+```
+    metadata:
+      name: my-service
+      annotations:
+        service.beta.kubernetes.io/aws-load-balancer-access-log-enabled: "true"
+        # Specifies whether access logs are enabled for the load balancer
+        service.beta.kubernetes.io/aws-load-balancer-access-log-emit-interval: "60"
+        # The interval for publishing the access logs. You can specify an interval of either 5 or 60 (minutes).
+        service.beta.kubernetes.io/aws-load-balancer-access-log-s3-bucket-name: "my-bucket"
+        # The name of the Amazon S3 bucket where the access logs are stored
+        service.beta.kubernetes.io/aws-load-balancer-access-log-s3-bucket-prefix: "my-bucket-prefix/prod"
+        # The logical hierarchy you created for your Amazon S3 bucket, for example `my-bucket-prefix/prod`
+```
+Other ELB annotations 
+There are other annotations to manage Classic Elastic Load Balancers that are described below.
+
+```
+    metadata:
+      name: my-service
+      annotations:
+        service.beta.kubernetes.io/aws-load-balancer-connection-idle-timeout: "60"
+        # The time, in seconds, that the connection is allowed to be idle (no data has been sent over the connection) before it is closed by the load balancer
+
+        service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+        # Specifies whether cross-zone load balancing is enabled for the load balancer
+
+        service.beta.kubernetes.io/aws-load-balancer-additional-resource-tags: "environment=prod,owner=devops"
+        # A comma-separated list of key-value pairs which will be recorded as
+        # additional tags in the ELB.
+
+        service.beta.kubernetes.io/aws-load-balancer-healthcheck-healthy-threshold: ""
+        # The number of successive successful health checks required for a backend to
+        # be considered healthy for traffic. Defaults to 2, must be between 2 and 10
+
+        service.beta.kubernetes.io/aws-load-balancer-healthcheck-unhealthy-threshold: "3"
+        # The number of unsuccessful health checks required for a backend to be
+        # considered unhealthy for traffic. Defaults to 6, must be between 2 and 10
+
+        service.beta.kubernetes.io/aws-load-balancer-healthcheck-interval: "20"
+        # The approximate interval, in seconds, between health checks of an
+        # individual instance. Defaults to 10, must be between 5 and 300
+
+        service.beta.kubernetes.io/aws-load-balancer-healthcheck-timeout: "5"
+        # The amount of time, in seconds, during which no response means a failed
+        # health check. This value must be less than the service.beta.kubernetes.io/aws-load-balancer-healthcheck-interval
+        # value. Defaults to 5, must be between 2 and 60
+
+        service.beta.kubernetes.io/aws-load-balancer-security-groups: "sg-53fae93f"
+        # A list of existing security groups to be configured on the ELB created. Unlike the annotation
+        # service.beta.kubernetes.io/aws-load-balancer-extra-security-groups, this replaces all other security groups previously assigned to the ELB and also overrides the creation 
+        # of a uniquely generated security group for this ELB.
+        # The first security group ID on this list is used as a source to permit incoming traffic to target worker nodes (service traffic and health checks).
+        # If multiple ELBs are configured with the same security group ID, only a single permit line will be added to the worker node security groups, that means if you delete any
+        # of those ELBs it will remove the single permit line and block access for all ELBs that shared the same security group ID.
+        # This can cause a cross-service outage if not used properly
+
+        service.beta.kubernetes.io/aws-load-balancer-extra-security-groups: "sg-53fae93f,sg-42efd82e"
+        #  A list of additional security groups to be added to the created ELB, this leaves the uniquely generated security group in place, this ensures that every ELB
+        # has a unique security group ID and a matching permit line to allow traffic to the target worker nodes (service traffic and health checks).
+        # Security groups defined here can be shared between services. 
+
+        service.beta.kubernetes.io/aws-load-balancer-target-node-labels: "ingress-gw,gw-name=public-api"
+        # A comma separated list of key-value pairs which are used
+        # to select the target nodes for the load balancer
+```
+### Network Load Balancer support on AWS 
+**FEATURE STATE: Kubernetes v1.15 [beta]**
+To use a Network Load Balancer on AWS, use the annotation ```service.beta.kubernetes.io/aws-load-balancer-type``` with the value set to ```nlb```.
+
+```
+    metadata:
+      name: my-service
+      annotations:
+        service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+```
+**Note:** NLB only works with certain instance classes; see the AWS documentation on Elastic Load Balancing for a list of supported instance types.
+Unlike Classic Elastic Load Balancers, Network Load Balancers (NLBs) forward the client's IP address through to the node. If a Service's ```.spec.externalTrafficPolicy``` is set to ```Cluster```, the client's IP address is not propagated to the end Pods.
+
+By setting ```.spec.externalTrafficPolicy``` to ```Local```, the client IP addresses is propagated to the end Pods, but this could result in uneven distribution of traffic. Nodes without any Pods for a particular LoadBalancer Service will fail the NLB Target Group's health check on the auto-assigned ```.spec.healthCheckNodePort``` and not receive any traffic.
+
+In order to achieve even traffic, either use a DaemonSet or specify a pod anti-affinity to not locate on the same node.
+
+You can also use NLB Services with the internal load balancer annotation.
+
+In order for client traffic to reach instances behind an NLB, the Node security groups are modified with the following IP rules:
+```
+Rule	Protocol	Port(s)	IpRange(s)	IpRange Description
+Health Check	TCP	NodePort(s) (.spec.healthCheckNodePort for .spec.externalTrafficPolicy = Local)	Subnet CIDR	kubernetes.io/rule/nlb/health=<loadBalancerName>
+Client Traffic	TCP	NodePort(s)	.spec.loadBalancerSourceRanges (defaults to 0.0.0.0/0)	kubernetes.io/rule/nlb/client=<loadBalancerName>
+MTU Discovery	ICMP	3,4	.spec.loadBalancerSourceRanges (defaults to 0.0.0.0/0)	kubernetes.io/rule/nlb/mtu=<loadBalancerName>
+```
+In order to limit which client IP's can access the Network Load Balancer, specify ```loadBalancerSourceRanges```.
+**Note:** If ```.spec.loadBalancerSourceRanges``` is not set, Kubernetes allows traffic from ```0.0.0.0/0``` to the Node Security Group(s). If nodes have public IP addresses, be aware that non-NLB traffic can also reach all instances in those modified security groups.
+
+### Type ExternalName
+Services of type ExternalName map a Service to a DNS name, not to a typical selector such as ```my-service``` or ```cassandra```. You specify these Services with the ```spec.externalName``` parameter.
+
+This Service definition, for example, maps the ```my-service``` Service in the ```prod``` namespace to ```my.database.example.com```:
+
+```
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-service
+  namespace: prod
+spec:
+  type: ExternalName
+  externalName: my.database.example.com
+```
+**Note:** ExternalName accepts an IPv4 address string, but as a DNS name comprised of digits, not as an IP address. ExternalNames that resemble IPv4 addresses are not resolved by CoreDNS or ingress-nginx because ExternalName is intended to specify a canonical DNS name. To hardcode an IP address, consider using headless Services.
+
+When looking up the host ```my-service.prod.svc.cluster.local```, the cluster DNS Service returns a CNAME record with the value ```my.database.example.com```. Accessing ```my-service``` works in the same way as other Services but with the crucial difference that redirection happens at the DNS level rather than via proxying or forwarding. Should you later decide to move your database into your cluster, you can start its Pods, add appropriate selectors or endpoints, and change the Service's type.
+
+**Warning:**
+You may have trouble using ExternalName for some common protocols, including HTTP and HTTPS. If you use ExternalName then the hostname used by clients inside your cluster is different from the name that the ExternalName references.
+
+For protocols that use hostnames this difference may lead to errors or unexpected responses. HTTP requests will have a Host: header that the origin server does not recognize; TLS servers will not be able to provide a certificate matching the hostname that the client connected to.
+
+### External IPs 
+If there are external IPs that route to one or more cluster nodes, Kubernetes Services can be exposed on those ```externalIPs```. Traffic that ingresses into the cluster with the external IP (as destination IP), on the Service port, will be routed to one of the Service endpoints. ```externalIPs``` are not managed by Kubernetes and are the responsibility of the cluster administrator.
+
+In the Service spec, ```externalIPs``` can be specified along with any of the ServiceTypes. In the example below, "```my-service```" can be accessed by clients on "```80.11.12.10:80```" (```externalIP:port```)
+
+```
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-service
+spec:
+  selector:
+    app: MyApp
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 9376
+  externalIPs:
+    - 80.11.12.10
+```
+
+### Shortcomings
+Using the userspace proxy for VIPs works at small to medium scale, but will not scale to very large clusters with thousands of Services. The original design proposal for portals has more details on this.
+
+Using the userspace proxy obscures the source IP address of a packet accessing a Service. This makes some kinds of network filtering (firewalling) impossible. The iptables proxy mode does not obscure in-cluster source IPs, but it does still impact clients coming through a load balancer or node-port.
+
+The Type field is designed as nested functionality - each level adds to the previous. This is not strictly required on all cloud providers (e.g. Google Compute Engine does not need to allocate a NodePort to make LoadBalancer work, but AWS does) but the current API requires it.
+
+## Virtual IP implementation
+The previous information should be sufficient for many people who want to use Services. However, there is a lot going on behind the scenes that may be worth understanding.
+
+### Avoiding collisions
+
+One of the primary philosophies of Kubernetes is that you should not be exposed to situations that could cause your actions to fail through no fault of your own. For the design of the Service resource, this means not making you choose your own port number if that choice might collide with someone else's choice. That is an isolation failure.
+
+In order to allow you to choose a port number for your Services, we must ensure that no two Services can collide. Kubernetes does that by allocating each Service its own IP address.
+
+To ensure each Service receives a unique IP, an internal allocator atomically updates a global allocation map in etcd prior to creating each Service. The map object must exist in the registry for Services to get IP address assignments, otherwise creations will fail with a message indicating an IP address could not be allocated.
+
+In the control plane, a background controller is responsible for creating that map (needed to support migrating from older versions of Kubernetes that used in-memory locking). Kubernetes also uses controllers to check for invalid assignments (eg due to administrator intervention) and for cleaning up allocated IP addresses that are no longer used by any Services.
+
+### Service IP addresses
+Unlike Pod IP addresses, which actually route to a fixed destination, Service IPs are not actually answered by a single host. Instead, kube-proxy uses iptables (packet processing logic in Linux) to define virtual IP addresses which are transparently redirected as needed. When clients connect to the VIP, their traffic is automatically transported to an appropriate endpoint. The environment variables and DNS for Services are actually populated in terms of the Service's virtual IP address (and port).
+
+kube-proxy supports three proxy modes—userspace, iptables and IPVS—which each operate slightly differently
+
+### Userspace
+As an example, consider the image processing application described above. When the backend Service is created, the Kubernetes master assigns a virtual IP address, for example 10.0.0.1. Assuming the Service port is 1234, the Service is observed by all of the kube-proxy instances in the cluster. When a proxy sees a new Service, it opens a new random port, establishes an iptables redirect from the virtual IP address to this new port, and starts accepting connections on it.
+
+When a client connects to the Service's virtual IP address, the iptables rule kicks in, and redirects the packets to the proxy's own port. The "Service proxy" chooses a backend, and starts proxying traffic from the client to the backend.
+
+This means that Service owners can choose any port they want without risk of collision. Clients can connect to an IP and port, without being aware of which Pods they are actually accessing.
+
+### iptables
+Again, consider the image processing application described above. When the backend Service is created, the Kubernetes control plane assigns a virtual IP address, for example 10.0.0.1. Assuming the Service port is 1234, the Service is observed by all of the kube-proxy instances in the cluster. When a proxy sees a new Service, it installs a series of iptables rules which redirect from the virtual IP address to per-Service rules. The per-Service rules link to per-Endpoint rules which redirect traffic (using destination NAT) to the backends.
+
+When a client connects to the Service's virtual IP address the iptables rule kicks in. A backend is chosen (either based on session affinity or randomly) and packets are redirected to the backend. Unlike the userspace proxy, packets are never copied to userspace, the kube-proxy does not have to be running for the virtual IP address to work, and Nodes see traffic arriving from the unaltered client IP address.
+
+This same basic flow executes when traffic comes in through a node-port or through a load-balancer, though in those cases the client IP does get altered.
+
+### IPVS
+iptables operations slow down dramatically in large scale cluster e.g 10,000 Services. IPVS is designed for load balancing and based on in-kernel hash tables. So you can achieve performance consistency in large number of Services from IPVS-based kube-proxy. Meanwhile, IPVS-based kube-proxy has more sophisticated load balancing algorithms (least conns, locality, weighted, persistence).
+## API Object
+Service is a top-level resource in the Kubernetes REST API. You can find more details about the API object at: Service API object.
+
+## Supported protocols
+### TCP
+You can use TCP for any kind of Service, and it's the default network protocol.
+
+### UDP
+You can use UDP for most Services. For type=LoadBalancer Services, UDP support depends on the cloud provider offering this facility.
+
+### SCTP
+FEATURE STATE: Kubernetes v1.20 [stable]
+When using a network plugin that supports SCTP traffic, you can use SCTP for most Services. For type=LoadBalancer Services, SCTP support depends on the cloud provider offering this facility. (Most do not).
+
+### Warnings
+Support for multihomed SCTP associations
+
+**Warning:**
+The support of multihomed SCTP associations requires that the CNI plugin can support the assignment of multiple interfaces and IP addresses to a Pod.
+
+NAT for multihomed SCTP associations requires special logic in the corresponding kernel modules.
+
+
+#### Windows
+**Note:** SCTP is not supported on Windows based nodes.
+#### Userspace kube-proxy
+**Warning:** The kube-proxy does not support the management of SCTP associations when it is in userspace mode.
+
+### HTTP
+If your cloud provider supports it, you can use a Service in LoadBalancer mode to set up external HTTP / HTTPS reverse proxying, forwarded to the Endpoints of the Service.
+
+**Note:** You can also use Ingress in place of Service to expose HTTP/HTTPS Services.
+
+### PROXY protocol
+If your cloud provider supports it, you can use a Service in LoadBalancer mode to configure a load balancer outside of Kubernetes itself, that will forward connections prefixed with PROXY protocol.
+
+The load balancer will send an initial series of octets describing the incoming connection, similar to this example
+```
+PROXY TCP4 192.0.2.202 10.0.42.7 12345 7\r\n
+```
+followed by the data from the client.
