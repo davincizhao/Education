@@ -13,7 +13,7 @@ Kubernetes networking addresses four concerns:
 - [**Topology-aware traffic routing with topology keys**](https://github.com/davincizhao/Education/tree/main/CloudComputing/CloudDevOpsEngineer/06_K8S_concepts/Services_LoadBalancing_Networking/Topology-aware_traffic_routing_with_topology_keys)
 - [**DNS for Services and Pods**](https://github.com/davincizhao/Education/tree/main/CloudComputing/CloudDevOpsEngineer/06_K8S_concepts/Services_LoadBalancing_Networking/DNS_for_Services_and_Pods)
 - [**Connecting Applications with Services**](https://github.com/davincizhao/Education/tree/main/CloudComputing/CloudDevOpsEngineer/06_K8S_concepts/Services_LoadBalancing_Networking/Connecting_Applications_with_Services)
-- [**Ingress**]()
+- [**Ingress**](https://github.com/davincizhao/Education/tree/main/CloudComputing/CloudDevOpsEngineer/06_K8S_concepts/Services_LoadBalancing_Networking/Ingress)
 - [**Ingress Controllers**]()
 - [**EndpointSlices**]()
 - [**Service Internal Traffic Policy**]()
