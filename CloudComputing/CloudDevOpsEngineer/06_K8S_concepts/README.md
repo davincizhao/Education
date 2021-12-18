@@ -34,7 +34,8 @@ Lower-level detail relevant to creating or administering a Kubernetes cluster.
 [**Extending Kubernetes**]()
 Different ways to change the behavior of your Kubernetes cluster.
 
-
+**Note:**
+All content and resource come from "https://kubernetes.io/docs/concepts", this repo is just for personal memerization the k8s concepts.
 
 
 
